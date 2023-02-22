@@ -378,56 +378,32 @@ function refreshBasetunesDescription()
   descriptionElement.innerHTML = selectElement.options[selectElement.selectedIndex].dataset.description;
 }
 
-function downloadHex(board)
+function downloadFWfiles()
 {
-
     var e = document.getElementById('versionsSelect');
 
-    var DLurl;
-    switch(board) {
-      case "TEENSY35":
-        DLurl = "http://speeduino.com/fw/teensy35/" + e.options[e.selectedIndex].value + "-teensy35.hex";
-        console.log("Downloading Teensy 35 firmware: " + DLurl);
-        break;
-      case "TEENSY36":
-        DLurl = "http://speeduino.com/fw/teensy36/" + e.options[e.selectedIndex].value + "-teensy36.hex";
-        console.log("Downloading Teensy 36 firmware: " + DLurl);
-        break;
-      case "TEENSY41":
-        DLurl = "http://speeduino.com/fw/teensy41/" + e.options[e.selectedIndex].value + "-teensy41.hex";
-        console.log("Downloading Teensy 41 firmware: " + DLurl);
-        break;
-      case "ATMEGA2560":
-        DLurl = "http://speeduino.com/fw/bin/" + e.options[e.selectedIndex].value + ".hex";
-        console.log("Downloading AVR firmware: " + DLurl);
-        break;
-      default:
-        DLurl = "http://speeduino.com/fw/bin/" + e.options[e.selectedIndex].value + ".hex";
-        console.log("Downloading AVR firmware: " + DLurl);
-        break;
-    }
+    let DLurls = [
+        "http://speeduino.com/fw/teensy35/" + e.options[e.selectedIndex].value + "-teensy35.hex",
+        "http://speeduino.com/fw/teensy36/" + e.options[e.selectedIndex].value + "-teensy36.hex",
+        "http://speeduino.com/fw/teensy41/" + e.options[e.selectedIndex].value + "-teensy41.hex",
+        "http://speeduino.com/fw/bin/" + e.options[e.selectedIndex].value + ".hex",
+        "https://speeduino.com/fw/" + e.options[e.selectedIndex].value + ".ini"
+    ];
+
+    FWFilesToDownload = DLurls.length;
     
-    //Download the Hex file
-    ipcRenderer.send("download", {
-        url: DLurl,
-        properties: {directory: "downloads"}
+    DLurls.forEach((DLurl) => {
+
+        console.log("Downloading firmware: " + DLurl);
+    
+        //Download the Hex file
+        ipcRenderer.send("download", {
+            url: DLurl,
+            properties: {directory: "downloads"}
+        });
+
     });
-
-}
-
-function downloadIni()
-{
-
-    var e = document.getElementById('versionsSelect');
-    var DLurl = "https://speeduino.com/fw/" + e.options[e.selectedIndex].value + ".ini";
-    console.log("Downloading: " + DLurl);
-
-    //Download the ini file
-    ipcRenderer.send("download", {
-        url: DLurl,
-        properties: {directory: "downloads"}
-    });
-
+    
 }
 
 function downloadBasetune()
@@ -457,6 +433,35 @@ function installDrivers()
     ipcRenderer.send("installWinDrivers", {
     });
 
+}
+
+var FWFilesToDownload;
+
+function downloadFW()
+{
+    ipcRenderer.on("download complete", (event, file, state) => {
+
+        let extension = file.substr(file.length - 3);
+        if(extension == "ini" || extension == "hex")
+        {
+            //statusText.innerHTML = "Downloading firmware"
+            //document.getElementById('iniFileText').style.display = "block"
+            //document.getElementById('iniFileLocation').innerHTML = file
+            //downloadHex(uploadBoard);
+            FWFilesToDownload--;
+
+            if (FWFilesToDownload == 0) {
+                let e = document.getElementById('versionsSelect');
+                e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloaded)"
+            }
+        }
+
+    });
+
+    let e = document.getElementById('versionsSelect');
+    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
+
+    downloadFWfiles();
 }
 
 function uploadFW()
@@ -660,11 +665,15 @@ $(function(){
 	});
 
 	$(document).on('click', '#iniFileLink', function(event) {
-    var location = document.getElementById('iniFileLocation').innerHTML
-    if (location != "")
-    {
-      ipcRenderer.invoke('show-ini', location);
-    }
+        var location = document.getElementById('iniFileLocation').innerHTML
+        if (location != "")
+        {
+            ipcRenderer.invoke('show-ini', location);
+        }
+	});
+
+	$(document).on('click', '#btnDownloadFirmware', function(event) {
+		downloadFW();
 	});
 
 }); 
