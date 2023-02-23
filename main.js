@@ -3,6 +3,7 @@ const {download} = require('electron-dl')
 const {execFile} = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const url = require('url');
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -86,44 +87,95 @@ app.on('activate', () => {
   }
 })
 
-ipcMain.on('download', (e, args) => {
-  filename = args.url.substring(args.url.lastIndexOf('/')+1);
-  dlDir = app.getPath('downloads');
-  const path = require('node:path');
-  fullFile = path.join(dlDir, filename);
+ipcMain.on('downloadFWfiles', (e, args) => {
+  
+  ( async () => {
+    
+    dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
 
-  //Special case for handling the build that is from master. This is ALWAYS downloaded as there's no way of telling when it was last updated. 
-  if(filename.includes("master")) 
-  {
-    if(fs.existsSync(fullFile))
-    {
-      fs.unlinkSync(fullFile)
-      console.log('Master version selected, removing local file forcing re-download: ' + filename);
+    // Remove old files for this version
+    try {
+      fs.readdirSync(dlDir).forEach(file => {
+        file = path.join(dlDir, file);
+        if (fs.lstatSync(file).isFile() && (path.extname(file) === '.hex' || path.extname(file) === '.ini')) {
+          fs.unlinkSync(file)
+        }
+      });
+    }
+    catch (err) {
+      if (err.code !== 'ENOENT') {
+        throw err;
+      }
     }
 
-  }
+    // Download all files to this firmware version
+
+    let DLurls = [
+      "https://speeduino.com/fw/teensy35/" + args.version + "-teensy35.hex",
+      "https://speeduino.com/fw/teensy36/" + args.version + "-teensy36.hex",
+      "https://speeduino.com/fw/teensy41/" + args.version + "-teensy41.hex",
+      "https://speeduino.com/fw/bin/" + args.version + ".hex",
+      "https://speeduino.com/fw/" + args.version + ".ini"
+    ];
+
+    for (const DLurl of DLurls) {
+
+      console.log("Downloading firmware: " + DLurl);
+
+      let savedFile = await downloadFileToFolder(DLurl, dlDir);
+      console.log("downloadFWfiles " + savedFile);
+
+    };
+
+    e.sender.send("downloadFWcomplete");
+  })();
+    
+});
+
+async function downloadFileToFolder(argsUrl, dlDir) {
+
+  let parsed = url.parse(argsUrl);
+  let filename = path.basename(parsed.pathname);
+
+  let savedFile;
+
+  await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir } )
+    .then(dl => { savedFile = dl.getSavePath() } )
+    .catch(console.error);
+
+  return savedFile;
+}
+
+ipcMain.on('download', (e, args) => {
+  downloadFile(args.url, args.version);
+});
+
+function downloadFile(argsUrl, dlDir) {
+  console.log(argsUrl);
+
+  let parsed = url.parse(argsUrl);
+  let filename = path.basename(parsed.pathname);
+
+  dlDir = path.join(app.getPath('userData'), version);
+  fullFile = path.join(dlDir, filename);
 
   //console.log("Filename: " + fullFile );
-  options = {};
+  let options = {};
   if(filename.split('.').pop() == "msq")
   {
     options = { saveAs: true };
   }
+  else {
+    options = { directory: dlDir };
+  }
 
-  fs.exists(fullFile, (exists) => {
-    if (exists) {
-      console.log("File " + fullFile + " already exists in Downloads directory. Skipping download");
-      e.sender.send( "download complete", fullFile, "exists" );
-    } 
-    else {
-      download(BrowserWindow.getFocusedWindow(), args.url, options)
-        .then(dl => e.sender.send( "download complete", dl.getSavePath(), dl.getState() ) )
-        .catch(console.error);
-    }
-  });
+  let savedFile;
+  download(BrowserWindow.getFocusedWindow(), argsUrl, options)
+    .then(dl => { savedFile = dl.getSavePath() } )
+    .catch(console.error);
 
-	
-});
+  return savedFile;
+}
 
 ipcMain.on('installWinDrivers', (e, args) => {
   var infName = __dirname + "/bin/drivers-win/arduino.inf";

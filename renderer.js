@@ -378,34 +378,6 @@ function refreshBasetunesDescription()
   descriptionElement.innerHTML = selectElement.options[selectElement.selectedIndex].dataset.description;
 }
 
-function downloadFWfiles()
-{
-    var e = document.getElementById('versionsSelect');
-
-    let DLurls = [
-        "http://speeduino.com/fw/teensy35/" + e.options[e.selectedIndex].value + "-teensy35.hex",
-        "http://speeduino.com/fw/teensy36/" + e.options[e.selectedIndex].value + "-teensy36.hex",
-        "http://speeduino.com/fw/teensy41/" + e.options[e.selectedIndex].value + "-teensy41.hex",
-        "http://speeduino.com/fw/bin/" + e.options[e.selectedIndex].value + ".hex",
-        "https://speeduino.com/fw/" + e.options[e.selectedIndex].value + ".ini"
-    ];
-
-    FWFilesToDownload = DLurls.length;
-    
-    DLurls.forEach((DLurl) => {
-
-        console.log("Downloading firmware: " + DLurl);
-    
-        //Download the Hex file
-        ipcRenderer.send("download", {
-            url: DLurl,
-            properties: {directory: "downloads"}
-        });
-
-    });
-    
-}
-
 function downloadBasetune()
 {
   console.log("downloading");
@@ -435,34 +407,19 @@ function installDrivers()
 
 }
 
-var FWFilesToDownload;
-
 function downloadFW()
 {
-    ipcRenderer.on("download complete", (event, file, state) => {
-
-        let extension = file.substr(file.length - 3);
-        if(extension == "ini" || extension == "hex")
-        {
-            //statusText.innerHTML = "Downloading firmware"
-            //document.getElementById('iniFileText').style.display = "block"
-            //document.getElementById('iniFileLocation').innerHTML = file
-            //downloadHex(uploadBoard);
-            FWFilesToDownload--;
-
-            if (FWFilesToDownload == 0) {
-                let e = document.getElementById('versionsSelect');
-                e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloaded)"
-            }
-        }
-
-    });
-
     let e = document.getElementById('versionsSelect');
-    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
+    let version = e.options[e.selectedIndex].value;
 
-    downloadFWfiles();
+    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
+    ipcRenderer.send("downloadFWfiles", { version: version });
 }
+
+ipcRenderer.on("downloadFWcomplete", (event) => {
+    let e = document.getElementById('versionsSelect');
+    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloaded)"
+});
 
 function uploadFW()
 {
