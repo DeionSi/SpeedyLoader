@@ -168,7 +168,7 @@ function refreshAvailableFirmwares()
         }
         return Promise.reject(response);
     })
-    .then((result) => {
+    .then(async (result) => {
         var lines = result.split('\n');
         // Continue with your processing here.
         
@@ -177,6 +177,10 @@ function refreshAvailableFirmwares()
             var newOption = document.createElement('option');
             newOption.value = lines[i];
             newOption.innerHTML = lines[i];
+            
+            let downloadStatus = await ipcRenderer.invoke("getVersionDownloadStatus", { version: lines[i] });
+            if (downloadStatus === 'downloaded') { newOption.innerHTML += " (" + downloadStatus + ")"; }
+
             select.appendChild(newOption);
         }
         select.selectedIndex = 0;

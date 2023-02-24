@@ -31,6 +31,7 @@
   "dependencies": {
     "@serialport/bindings-cpp": "^10.8.0",
     "electron-dl": "^3.5.0",
+    "electron-store": "^8.1.0",
     "jquery": "^3.6.3",
     "marked": "^4.2.5",
     "semver": "^7.3.8",

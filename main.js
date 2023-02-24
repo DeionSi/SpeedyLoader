@@ -4,6 +4,8 @@ const {execFile} = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const Store = require('electron-store');
+const configStore = new Store();
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -91,7 +93,8 @@ ipcMain.on('downloadFWfiles', (e, args) => {
   
   ( async () => {
     
-    dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
+    let configProperty = ['versions', args.version].join('.');
+    let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
 
     // Remove old files for this version
     try {
@@ -108,8 +111,9 @@ ipcMain.on('downloadFWfiles', (e, args) => {
       }
     }
 
-    // Download all files to this firmware version
+    configStore.delete(configProperty); // files have been deleted, remove from config store
 
+    // Download all files to this firmware version
     let DLurls = [
       "https://speeduino.com/fw/teensy35/" + args.version + "-teensy35.hex",
       "https://speeduino.com/fw/teensy36/" + args.version + "-teensy36.hex",
@@ -118,19 +122,57 @@ ipcMain.on('downloadFWfiles', (e, args) => {
       "https://speeduino.com/fw/" + args.version + ".ini"
     ];
 
+    let savedFiles = [];
     for (const DLurl of DLurls) {
 
       console.log("Downloading firmware: " + DLurl);
-
       let savedFile = await downloadFileToFolder(DLurl, dlDir);
+      savedFiles.push(savedFile);
       console.log("downloadFWfiles " + savedFile);
 
     };
+
+    if (savedFiles.length > 0) {
+      configStore.set(configProperty, savedFiles);
+    }
 
     e.sender.send("downloadFWcomplete");
   })();
     
 });
+
+ipcMain.handle('getVersionDownloadStatus', (e, args) => {
+  return getVersionDownloadStatus(args.version);
+});
+
+function getVersionDownloadStatus(version) {
+
+  let configProperty = ['versions', version].join('.');
+  let versionFiles = configStore.get(configProperty);
+  //console.log(versionFiles);
+  let downloadStatus;
+
+  if (typeof versionFiles === 'undefined') { downloadStatus = "not downloaded"; }
+  else if (versionFiles.length === 0) { downloadStatus = "not downloaded"; }
+  else
+  {
+    let filesFound = 0;
+    for (const file of versionFiles) {
+      if (fs.existsSync(file)) { filesFound++; }
+    }
+
+    if (filesFound == versionFiles.length) { downloadStatus = "downloaded"; }
+    else if (filesFound == 0) {
+      downloadStatus = "not downloaded";
+      configStore.delete(configProperty); // files have been deleted, remove from config store
+    }
+    else {
+      downloadStatus = "partially downloaded";
+    }
+  }
+
+  return downloadStatus;
+}
 
 async function downloadFileToFolder(argsUrl, dlDir) {
 
