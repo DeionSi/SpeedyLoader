@@ -109,12 +109,7 @@ function refreshSerialPorts()
     })
     
     var button = document.getElementById("btnInstall")
-    if(ports.length > 0) 
-    {
-        select.selectedIndex = 0;
-        button.disabled = false;
-    }
-    else { button.disabled = true; }
+    button.disabled = true;
   
   })
 }
@@ -406,30 +401,30 @@ function installDrivers()
 
 }
 
-async function setVersionDownloadStatus(optionElement) {
-  let downloadStatus = await ipcRenderer.invoke("getVersionDownloadStatus", { version: optionElement.value });
+async function setVersionDownloadStatus(o) {
+  let ds = await ipcRenderer.invoke("getVersionDownloadStatus", { version: o.value });
   
-  optionElement.dataset.downloadstatus = downloadStatus;
+  console.log(ds);
+  o.dataset.downloadstatus = ds.status;
+  o.dataset.downloadtimestamp = ds.timestamp;
   
-  if (downloadStatus === 'downloaded' || downloadStatus === 'partially downloaded') {
-    optionElement.innerHTML = optionElement.value + " (" + downloadStatus + ")";
+  if (o.dataset.downloadstatus === 'downloaded' || o.dataset.downloadstatus === 'partially downloaded') {
+    o.innerHTML = o.value + " (" + o.dataset.downloadstatus + " " + o.dataset.downloadtimestamp + ")";
   }
   else {
-    optionElement.innerHTML = optionElement.value;
+    o.innerHTML = o.value;
   }
 
   let e = document.getElementById("versionsSelect");
-  var optionSelected = e.options[e.selectedIndex];
 
-  if (optionSelected === optionElement) {
-    if (optionSelected.dataset.downloadstatus === 'downloaded' || optionSelected.dataset.downloadstatus === 'partially downloaded') {
-      document.getElementById("btnUnloadFirmware").hidden = false;
-      document.getElementById("btnDownloadFirmware").hidden = true;
+  if (o === e.options[e.selectedIndex]) {
+    if (o.dataset.downloadstatus === 'downloaded' || o.dataset.downloadstatus === 'partially downloaded') {
+      document.getElementById("btnDownloadUnloadFirmware").value = "Delete offline files";
     }
     else {
-      document.getElementById("btnUnloadFirmware").hidden = true;
-      document.getElementById("btnDownloadFirmware").hidden = false;
+      document.getElementById("btnDownloadUnloadFirmware").value = "Download";
     }
+    document.getElementById("btnDownloadUnloadFirmware").disabled = false;
   }
 
 }
@@ -461,7 +456,7 @@ function uploadFW()
     var burnPercentText = document.getElementById('burnPercent');
     statusText.innerHTML = "Downloading INI file"
     downloadIni();
-
+/*
     ipcRenderer.on("download complete", (event, file, state) => {
         console.log("Saved file: " + file); // Full file path
 
@@ -505,7 +500,7 @@ function uploadFW()
             }
         }
     });
-
+*/
     ipcRenderer.on("upload completed", (event, code) => {
         statusText.innerHTML = "Upload to arduino completed successfully!";
         burnPercentText.innerHTML = "";
@@ -642,23 +637,23 @@ $(function(){
         }
 	});
 
-	$(document).on('click', '#btnDownloadFirmware', async function() {
+	$(document).on('click', '#btnDownloadUnloadFirmware', async function() {
     let e = document.getElementById('versionsSelect');
+    let o = e.options[e.selectedIndex];
+    let b = document.getElementById("btnDownloadUnloadFirmware");
+    
+    b.disabled = true;
 
-    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
-    downloadStatus = await ipcRenderer.invoke("downloadFWfiles", { version: e.options[e.selectedIndex].value });
-    console.log(downloadStatus);
+    if (b.value == "Download") {
+      o.innerHTML = o.value + " (downloading...)";
+      await ipcRenderer.invoke("downloadFWfiles", { version: o.value });
+    }
+    else if (b.value == "Delete offline files") {
+      o.innerHTML = o.value + " (unloading...)";
+      await ipcRenderer.invoke("unloadFWfiles", { version: o.value });
+    }
 
-    setVersionDownloadStatus(e.options[e.selectedIndex]);
-	});
-
-	$(document).on('click', '#btnUnloadFirmware', async function() {
-    let e = document.getElementById('versionsSelect');
-
-    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (unloading...)"
-    await ipcRenderer.invoke("unloadFWfiles", { version: e.options[e.selectedIndex].value });
-
-    setVersionDownloadStatus(e.options[e.selectedIndex]);
+    setVersionDownloadStatus(o);
 	});
 
   $(document).on('change', '#versionsSelect', function () {

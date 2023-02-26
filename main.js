@@ -106,16 +106,20 @@ ipcMain.handle('downloadFWfiles', async (e, args) => {
   let savedFiles = [];
   for (const DLurl of DLurls) {
 
-    console.log("Downloading firmware: " + DLurl);
+    //console.log("Downloading firmware: " + DLurl);
     let savedFile = await downloadFileToFolder(DLurl, dlDir);
     savedFiles.push(savedFile);
-    console.log("downloadFWfiles " + savedFile);
+    //console.log("downloadFWfiles " + savedFile);
 
   };
 
+  //console.log(savedFiles);
   let configProperty = ['versions', args.version].join('.');
   if (savedFiles.length > 0) {
-    configStore.set(configProperty, savedFiles);
+    //console.log(versionWithFiles);
+    configStore.set(configProperty,
+      { downloadTimestamp: new Date(), files: savedFiles }
+    );
   }
 
   return "downloadFWcomplete";
@@ -156,18 +160,18 @@ function getVersionDownloadStatus(version) {
   let configProperty = ['versions', version].join('.');
   let versionFiles = configStore.get(configProperty);
   //console.log(versionFiles);
-  let downloadStatus;
+  let downloadStatus, downloadTimestamp;
 
-  if (typeof versionFiles === 'undefined') { downloadStatus = "not downloaded"; }
-  else if (versionFiles.length === 0) { downloadStatus = "not downloaded"; }
+  if (typeof versionFiles === 'undefined') { downloadStatus = "not downloaded"; downloadTimestamp = 0; }
+  else if (versionFiles.files.length === 0) { downloadStatus = "not downloaded"; downloadTimestamp = 0; }
   else
   {
     let filesFound = 0;
-    for (const file of versionFiles) {
+    for (const file of versionFiles.files) {
       if (fs.existsSync(file)) { filesFound++; }
     }
 
-    if (filesFound == versionFiles.length) { downloadStatus = "downloaded"; }
+    if (filesFound == versionFiles.files.length) { downloadStatus = "downloaded"; }
     else if (filesFound == 0) {
       downloadStatus = "not downloaded";
       configStore.delete(configProperty); // files have been deleted, remove from config store
@@ -175,17 +179,16 @@ function getVersionDownloadStatus(version) {
     else {
       downloadStatus = "partially downloaded";
     }
+
+    downloadTimestamp = new Date(versionFiles.downloadTimestamp).toLocaleDateString();
   }
 
-  return downloadStatus;
+  return { status: downloadStatus, timestamp: downloadTimestamp };
 }
 
 async function downloadFileToFolder(argsUrl, dlDir) {
 
-  let parsed = url.parse(argsUrl);
-  let filename = path.basename(parsed.pathname);
-
-  let savedFile;
+  let savedFile = "";
 
   await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir } )
     .then(dl => { savedFile = dl.getSavePath() } )
