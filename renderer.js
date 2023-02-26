@@ -177,13 +177,10 @@ function refreshAvailableFirmwares()
             var newOption = document.createElement('option');
             newOption.value = lines[i];
             newOption.innerHTML = lines[i];
-            
-            let downloadStatus = await ipcRenderer.invoke("getVersionDownloadStatus", { version: lines[i] });
-            if (downloadStatus === 'downloaded') { newOption.innerHTML += " (" + downloadStatus + ")"; }
+            appendedOption = select.appendChild(newOption);
 
-            select.appendChild(newOption);
+            await setVersionDownloadStatus(appendedOption);
         }
-        select.selectedIndex = 0;
 
         //Remove the loading spinner
         loadingSpinner = document.getElementById("fwVersionsSpinner");
@@ -192,8 +189,6 @@ function refreshAvailableFirmwares()
         refreshBasetunes();
 
         //Re-enable the buttons
-        DetailsButton.disabled = false;
-        ChoosePortButton.disabled = false;
         basetuneButton.disabled = false;
 
     })
@@ -411,19 +406,33 @@ function installDrivers()
 
 }
 
-function downloadFW()
-{
-    let e = document.getElementById('versionsSelect');
-    let version = e.options[e.selectedIndex].value;
+async function setVersionDownloadStatus(optionElement) {
+  let downloadStatus = await ipcRenderer.invoke("getVersionDownloadStatus", { version: optionElement.value });
+  
+  optionElement.dataset.downloadstatus = downloadStatus;
+  
+  if (downloadStatus === 'downloaded' || downloadStatus === 'partially downloaded') {
+    optionElement.innerHTML = optionElement.value + " (" + downloadStatus + ")";
+  }
+  else {
+    optionElement.innerHTML = optionElement.value;
+  }
 
-    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
-    ipcRenderer.send("downloadFWfiles", { version: version });
+  let e = document.getElementById("versionsSelect");
+  var optionSelected = e.options[e.selectedIndex];
+
+  if (optionSelected === optionElement) {
+    if (optionSelected.dataset.downloadstatus === 'downloaded' || optionSelected.dataset.downloadstatus === 'partially downloaded') {
+      document.getElementById("btnUnloadFirmware").hidden = false;
+      document.getElementById("btnDownloadFirmware").hidden = true;
+    }
+    else {
+      document.getElementById("btnUnloadFirmware").hidden = true;
+      document.getElementById("btnDownloadFirmware").hidden = false;
+    }
+  }
+
 }
-
-ipcRenderer.on("downloadFWcomplete", (event) => {
-    let e = document.getElementById('versionsSelect');
-    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloaded)"
-});
 
 function uploadFW()
 {
@@ -633,8 +642,28 @@ $(function(){
         }
 	});
 
-	$(document).on('click', '#btnDownloadFirmware', function(event) {
-		downloadFW();
+	$(document).on('click', '#btnDownloadFirmware', async function() {
+    let e = document.getElementById('versionsSelect');
+
+    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (downloading...)"
+    downloadStatus = await ipcRenderer.invoke("downloadFWfiles", { version: e.options[e.selectedIndex].value });
+    console.log(downloadStatus);
+
+    setVersionDownloadStatus(e.options[e.selectedIndex]);
 	});
 
-}); 
+	$(document).on('click', '#btnUnloadFirmware', async function() {
+    let e = document.getElementById('versionsSelect');
+
+    e.options[e.selectedIndex].innerHTML = e.options[e.selectedIndex].value + " (unloading...)"
+    await ipcRenderer.invoke("unloadFWfiles", { version: e.options[e.selectedIndex].value });
+
+    setVersionDownloadStatus(e.options[e.selectedIndex]);
+	});
+
+  $(document).on('change', '#versionsSelect', function () {
+    let e = document.getElementById("versionsSelect");
+    setVersionDownloadStatus(e.options[e.selectedIndex]);
+  });
+
+});

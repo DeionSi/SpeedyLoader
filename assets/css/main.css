@@ -1838,7 +1838,6 @@ input, select, textarea {
 		border-radius: 3em;
 		color: #ffffff !important;
 		cursor: pointer;
-		display: inline-block;
 		font-size: 0.6em;
 		font-weight: bold;
 		height: calc(4.75em + 2px);
@@ -2356,6 +2355,10 @@ input, select, textarea {
 			color: #ffffff;
 			background: none;
 		}
+
+		option:checked {
+			background: #1E90FF;
+		} 
 
 		select:focus::-ms-value {
 			background-color: transparent;

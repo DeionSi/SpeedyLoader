@@ -89,57 +89,63 @@ app.on('activate', () => {
   }
 })
 
-ipcMain.on('downloadFWfiles', (e, args) => {
-  
-  ( async () => {
-    
-    let configProperty = ['versions', args.version].join('.');
-    let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
+ipcMain.handle('downloadFWfiles', async (e, args) => {
 
-    // Remove old files for this version
-    try {
-      fs.readdirSync(dlDir).forEach(file => {
-        file = path.join(dlDir, file);
-        if (fs.lstatSync(file).isFile() && (path.extname(file) === '.hex' || path.extname(file) === '.ini')) {
-          fs.unlinkSync(file)
-        }
-      });
-    }
-    catch (err) {
-      if (err.code !== 'ENOENT') {
-        throw err;
-      }
-    }
+  unloadFWfiles(args.version);
 
-    configStore.delete(configProperty); // files have been deleted, remove from config store
+  // Download all files to this firmware version
+  let DLurls = [
+    "https://speeduino.com/fw/teensy35/" + args.version + "-teensy35.hex",
+    "https://speeduino.com/fw/teensy36/" + args.version + "-teensy36.hex",
+    "https://speeduino.com/fw/teensy41/" + args.version + "-teensy41.hex",
+    "https://speeduino.com/fw/bin/" + args.version + ".hex",
+    "https://speeduino.com/fw/" + args.version + ".ini"
+  ];
 
-    // Download all files to this firmware version
-    let DLurls = [
-      "https://speeduino.com/fw/teensy35/" + args.version + "-teensy35.hex",
-      "https://speeduino.com/fw/teensy36/" + args.version + "-teensy36.hex",
-      "https://speeduino.com/fw/teensy41/" + args.version + "-teensy41.hex",
-      "https://speeduino.com/fw/bin/" + args.version + ".hex",
-      "https://speeduino.com/fw/" + args.version + ".ini"
-    ];
+  let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
+  let savedFiles = [];
+  for (const DLurl of DLurls) {
 
-    let savedFiles = [];
-    for (const DLurl of DLurls) {
+    console.log("Downloading firmware: " + DLurl);
+    let savedFile = await downloadFileToFolder(DLurl, dlDir);
+    savedFiles.push(savedFile);
+    console.log("downloadFWfiles " + savedFile);
 
-      console.log("Downloading firmware: " + DLurl);
-      let savedFile = await downloadFileToFolder(DLurl, dlDir);
-      savedFiles.push(savedFile);
-      console.log("downloadFWfiles " + savedFile);
+  };
 
-    };
+  let configProperty = ['versions', args.version].join('.');
+  if (savedFiles.length > 0) {
+    configStore.set(configProperty, savedFiles);
+  }
 
-    if (savedFiles.length > 0) {
-      configStore.set(configProperty, savedFiles);
-    }
-
-    e.sender.send("downloadFWcomplete");
-  })();
-    
+  return "downloadFWcomplete";
 });
+
+ipcMain.handle('unloadFWfiles', (e, args) => {
+  unloadFWfiles(args.version);
+});
+
+function unloadFWfiles(version) {
+  let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', version);
+
+  // Remove old files for this version
+  try {
+    fs.readdirSync(dlDir).forEach(file => {
+      file = path.join(dlDir, file);
+      if (fs.lstatSync(file).isFile() && (path.extname(file) === '.hex' || path.extname(file) === '.ini')) {
+        fs.unlinkSync(file)
+      }
+    });
+  }
+  catch (err) {
+    if (err.code !== 'ENOENT') {
+      throw err;
+    }
+  }
+  
+  let configProperty = ['versions', version].join('.');
+  configStore.delete(configProperty); // files have been deleted, remove from config store
+}
 
 ipcMain.handle('getVersionDownloadStatus', (e, args) => {
   return getVersionDownloadStatus(args.version);
