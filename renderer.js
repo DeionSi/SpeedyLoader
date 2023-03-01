@@ -174,7 +174,7 @@ function refreshAvailableFirmwares()
             newOption.innerHTML = lines[i];
             appendedOption = select.appendChild(newOption);
 
-            await setVersionDownloadStatus(appendedOption);
+            await handleVersionDownloadStatus(appendedOption);
         }
 
         //Remove the loading spinner
@@ -401,15 +401,21 @@ function installDrivers()
 
 }
 
-async function setVersionDownloadStatus(o) {
+async function handleVersionDownloadStatus(o) {
   let ds = await ipcRenderer.invoke("getVersionDownloadStatus", { version: o.value });
   
-  console.log(ds);
+  //console.log(ds);
   o.dataset.downloadstatus = ds.status;
   o.dataset.downloadtimestamp = ds.timestamp;
   
-  if (o.dataset.downloadstatus === 'downloaded' || o.dataset.downloadstatus === 'partially downloaded') {
-    o.innerHTML = o.value + " (" + o.dataset.downloadstatus + " " + o.dataset.downloadtimestamp + ")";
+  if (o.dataset.downloadstatus !== 'not downloaded') {
+    if (o.value === "master") {
+      o.innerHTML = o.value + " (" + o.dataset.downloadstatus + " " + o.dataset.downloadtimestamp + ")";
+    }
+    else {
+      o.innerHTML = o.value + " (" + o.dataset.downloadstatus + ")";
+    }
+  
   }
   else {
     o.innerHTML = o.value;
@@ -418,7 +424,7 @@ async function setVersionDownloadStatus(o) {
   let e = document.getElementById("versionsSelect");
 
   if (o === e.options[e.selectedIndex]) {
-    if (o.dataset.downloadstatus === 'downloaded' || o.dataset.downloadstatus === 'partially downloaded') {
+    if (o.dataset.downloadstatus !== 'not downloaded') {
       document.getElementById("btnDownloadUnloadFirmware").value = "Delete offline files";
     }
     else {
@@ -653,12 +659,12 @@ $(function(){
       await ipcRenderer.invoke("unloadFWfiles", { version: o.value });
     }
 
-    setVersionDownloadStatus(o);
+    handleVersionDownloadStatus(o);
 	});
 
   $(document).on('change', '#versionsSelect', function () {
     let e = document.getElementById("versionsSelect");
-    setVersionDownloadStatus(e.options[e.selectedIndex]);
+    handleVersionDownloadStatus(e.options[e.selectedIndex]);
   });
 
 });

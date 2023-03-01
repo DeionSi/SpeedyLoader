@@ -102,25 +102,35 @@ ipcMain.handle('downloadFWfiles', async (e, args) => {
     "https://speeduino.com/fw/" + args.version + ".ini"
   ];
 
-  let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', args.version);
-  let savedFiles = [];
+  let dlDir = getVersionPath(args.version);
+  let files = [];
+  let filesDownloaded = 0;
   for (const DLurl of DLurls) {
 
     //console.log("Downloading firmware: " + DLurl);
-    let savedFile = await downloadFileToFolder(DLurl, dlDir);
-    savedFiles.push(savedFile);
-    //console.log("downloadFWfiles " + savedFile);
+    let download = await downloadFileToFolder(DLurl, dlDir);
+    
+    if (download.savedFile.length > 0) { filesDownloaded++; }
+
+    files.push(download);
+    //console.log("downloadFWfiles " + download);
 
   };
 
-  //console.log(savedFiles);
-  let configProperty = ['versions', args.version].join('.');
-  if (savedFiles.length > 0) {
-    //console.log(versionWithFiles);
-    configStore.set(configProperty,
-      { downloadTimestamp: new Date(), files: savedFiles }
-    );
+  let downloadStatus = "";
+  if (filesDownloaded === DLurls.length) {
+    downloadStatus = "downloaded"
   }
+  else if (filesDownloaded === 0) {
+    downloadStatus = "download failed"
+  }
+  else {
+    downloadStatus = "partially downloaded, " + (DLurls.length-filesDownloaded) + " of " + DLurls.length + " files failed"
+  }
+
+  let configProperty = ['versions', args.version].join('.');
+
+  configStore.set(configProperty, { downloadStatus: downloadStatus, downloadTimestamp: new Date(), files: files } );
 
   return "downloadFWcomplete";
 });
@@ -130,24 +140,24 @@ ipcMain.handle('unloadFWfiles', (e, args) => {
 });
 
 function unloadFWfiles(version) {
-  let dlDir = path.join(app.getPath('userData'), 'firmwareVersions', version);
+  let dataDir = getVersionPath(version);
+  let configProperty = ['versions', version].join('.');
 
-  // Remove old files for this version
-  try {
-    fs.readdirSync(dlDir).forEach(file => {
-      file = path.join(dlDir, file);
-      if (fs.lstatSync(file).isFile() && (path.extname(file) === '.hex' || path.extname(file) === '.ini')) {
-        fs.unlinkSync(file)
+  configStore.get(configProperty);
+
+  if (typeof versionFiles !== 'undefined') {
+    if (versionFiles.files.length > 0) {
+
+      for (const relativeFile of versionFiles.files) {
+        absoluteFile = path.join(dataDir, relativeFile);
+        if (fs.existsSync(absoluteFile)) {
+          fs.unlinkSync(absoluteFile);
+        }
       }
-    });
-  }
-  catch (err) {
-    if (err.code !== 'ENOENT') {
-      throw err;
+
     }
   }
   
-  let configProperty = ['versions', version].join('.');
   configStore.delete(configProperty); // files have been deleted, remove from config store
 }
 
@@ -158,43 +168,37 @@ ipcMain.handle('getVersionDownloadStatus', (e, args) => {
 function getVersionDownloadStatus(version) {
 
   let configProperty = ['versions', version].join('.');
-  let versionFiles = configStore.get(configProperty);
+  let versionStatus = configStore.get(configProperty);
   //console.log(versionFiles);
-  let downloadStatus, downloadTimestamp;
 
-  if (typeof versionFiles === 'undefined') { downloadStatus = "not downloaded"; downloadTimestamp = 0; }
-  else if (versionFiles.files.length === 0) { downloadStatus = "not downloaded"; downloadTimestamp = 0; }
-  else
-  {
-    let filesFound = 0;
-    for (const file of versionFiles.files) {
-      if (fs.existsSync(file)) { filesFound++; }
-    }
-
-    if (filesFound == versionFiles.files.length) { downloadStatus = "downloaded"; }
-    else if (filesFound == 0) {
-      downloadStatus = "not downloaded";
-      configStore.delete(configProperty); // files have been deleted, remove from config store
-    }
-    else {
-      downloadStatus = "partially downloaded";
-    }
-
-    downloadTimestamp = new Date(versionFiles.downloadTimestamp).toLocaleDateString();
+  if (typeof versionStatus === 'undefined') {
+    return {
+      status: "not downloaded",
+      timestamp: null
+    };
   }
+  else {
+    return {
+      status: versionStatus.downloadStatus,
+      timestamp: new Date(versionStatus.downloadTimestamp).toLocaleDateString()
+    };
+  }
+}
 
-  return { status: downloadStatus, timestamp: downloadTimestamp };
+function getVersionPath(version) {
+  dataDir = path.dirname(configStore.path);
+  return path.join(dataDir, 'firmwareVersions', version);
 }
 
 async function downloadFileToFolder(argsUrl, dlDir) {
 
-  let savedFile = "";
+  let savedFile = "", error = "";
 
-  await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir } )
-    .then(dl => { savedFile = dl.getSavePath() } )
-    .catch(console.error);
+  await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir, overwrite: true } )
+    .then(dl => { savedFile = dl.getSavePath(); } )
+    .catch(e => { error = e; } );
 
-  return savedFile;
+  return { savedFile, error };
 }
 
 ipcMain.on('download', (e, args) => {
