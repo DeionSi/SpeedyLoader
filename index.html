@@ -39,11 +39,15 @@
  <div style="display: none; text-align: center;" id="update_text"><a href="" id="update_url" target="_blank">A new version is available. Click here to download</a></div>
  <center><img src="assets/speeduino logo_white.png" width="235"/></center>
 
+<div class="features major" id="versionsDownloadStatus" style="display: none;color: red">
+</div>
+
  <!--<h1>Firmware Loader</h1>-->
  <p>Available Firmwares:
     <span class="icon fa-spinner" style="position: absolute; left: 48%; top: 42%;" id="fwVersionsSpinner"></span>
     <select name="firmwares" class="select" id="versionsSelect" size="10" width="20" onClick="refreshBasetunes();"></select>
     <ul class="actions">
+        <li><input type='button' id="btnRefreshFirmwareList" value="Refresh firmware list" disabled/></li>
         <li><input type='button' id="btnDownloadUnloadFirmware" value="Download" disabled/></li>
         <li><input type='button' id="btnChoosePort" value="Choose Port" hidden/></li>
     </ul>

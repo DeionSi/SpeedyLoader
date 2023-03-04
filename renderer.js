@@ -144,29 +144,33 @@ function refreshDetails()
 
 }
 
-function refreshAvailableFirmwares()
+async function refreshAvailableFirmwares()
 {
     //Disable the buttons. These are only re-enabled if the retrieve is successful
     var DetailsButton = document.getElementById("btnDetails");
     var ChoosePortButton = document.getElementById("btnChoosePort");
     var basetuneButton = document.getElementById("btnBasetune");
+    var refreshfirmwareButton = document.getElementById("btnRefreshFirmwareList");
     DetailsButton.disabled = true;
     ChoosePortButton.disabled = true;
     basetuneButton.disabled = true;
+    refreshfirmwareButton.disabled = true;
 
-    const select = document.getElementById('versionsSelect');
+    const versionsStatus = document.getElementById('versionsDownloadStatus');
+    versionsStatus.style.display = "none";
+    
+    let result = await ipcRenderer.invoke("refreshAvailableFirmwares");
 
-    fetch('https://speeduino.com/fw/versions', { signal: AbortSignal.timeout(5000) } )
-    .then((response) => {
-        if (response.ok) {
-            return response.text();
-        }
-        return Promise.reject(response);
-    })
-    .then(async (result) => {
-        var lines = result.split('\n');
-        // Continue with your processing here.
-        
+    if (typeof result.error !== 'undefined') {
+        versionsStatus.innerHTML = result.error;
+        versionsStatus.style.display = "block";
+    }
+
+    if (typeof result.versions !== 'undefined') {
+        const select = document.getElementById('versionsSelect');
+        while(select.options.length) { select.remove(0); }
+
+        var lines = result.versions.split('\n');
         for(var i = 0;i < lines.length;i++)
         {
             var newOption = document.createElement('option');
@@ -176,44 +180,23 @@ function refreshAvailableFirmwares()
 
             await handleVersionDownloadStatus(appendedOption);
         }
+    }
 
-        //Remove the loading spinner
-        loadingSpinner = document.getElementById("fwVersionsSpinner");
-        loadingSpinner.style.display = "none";
+    //Remove the loading spinner
+    loadingSpinner = document.getElementById("fwVersionsSpinner");
+    loadingSpinner.style.display = "none";
 
-        refreshBasetunes();
-
-        //Re-enable the buttons
-        basetuneButton.disabled = false;
-
-    })
-    .catch((error) => {
-        console.log("Error retrieving available firmwares. ", error);
-
-        var newOption = document.createElement('option');
-        if(error.code === 'ETIMEDOUT')
-        {
-            newOption.value = "Connection timed out";
-            newOption.innerHTML = "Connection timed out";
-        }
-        else
-        {
-            newOption.value = "Cannot retrieve firmware list";
-            newOption.innerHTML = "Cannot retrieve firmware list. Check internet connection and restart";
-        }
-        select.appendChild(newOption);
-
-        //Remove the loading spinner
-        loadingSpinner = document.getElementById("fwVersionsSpinner");
-        loadingSpinner.style.display = "none";
-    });
+    //Re-enable the buttons
+    basetuneButton.disabled = false;
+    refreshfirmwareButton.disabled = false;
+    refreshBasetunes();
 
 }
 
 function refreshBasetunes()
 {
     //Check whether the base tunes list has been populated yet
-    if(basetuneList === undefined || basetuneList.length == 0)
+    if(typeof basetuneList === undefined || basetuneList.length == 0)
     {
         console.log("No tunes loaded. Retrieving from server");
         //Load the json
@@ -583,7 +566,6 @@ async function checkForUpdates()
 
 window.onload = function () {
     refreshAvailableFirmwares();
-    refreshBasetunes();
     refreshSerialPorts();
     checkForUpdates();
     
@@ -644,27 +626,31 @@ $(function(){
 	});
 
 	$(document).on('click', '#btnDownloadUnloadFirmware', async function() {
-    let e = document.getElementById('versionsSelect');
-    let o = e.options[e.selectedIndex];
-    let b = document.getElementById("btnDownloadUnloadFirmware");
-    
-    b.disabled = true;
+        let e = document.getElementById('versionsSelect');
+        let o = e.options[e.selectedIndex];
+        let b = document.getElementById("btnDownloadUnloadFirmware");
+        
+        b.disabled = true;
 
-    if (b.value == "Download") {
-      o.innerHTML = o.value + " (downloading...)";
-      await ipcRenderer.invoke("downloadFWfiles", { version: o.value });
-    }
-    else if (b.value == "Delete offline files") {
-      o.innerHTML = o.value + " (unloading...)";
-      await ipcRenderer.invoke("unloadFWfiles", { version: o.value });
-    }
+        if (b.value == "Download") {
+        o.innerHTML = o.value + " (downloading...)";
+        await ipcRenderer.invoke("downloadFWfiles", { version: o.value });
+        }
+        else if (b.value == "Delete offline files") {
+        o.innerHTML = o.value + " (unloading...)";
+        await ipcRenderer.invoke("unloadFWfiles", { version: o.value });
+        }
 
-    handleVersionDownloadStatus(o);
+        handleVersionDownloadStatus(o);
 	});
 
-  $(document).on('change', '#versionsSelect', function () {
-    let e = document.getElementById("versionsSelect");
-    handleVersionDownloadStatus(e.options[e.selectedIndex]);
-  });
+    $(document).on('change', '#versionsSelect', function () {
+        let e = document.getElementById("versionsSelect");
+        handleVersionDownloadStatus(e.options[e.selectedIndex]);
+    });
+
+	$(document).on('click', '#btnRefreshFirmwareList', async function() {
+        refreshAvailableFirmwares();
+	});
 
 });

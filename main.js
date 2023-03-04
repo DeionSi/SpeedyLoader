@@ -107,8 +107,11 @@ ipcMain.handle('downloadFWfiles', async (e, args) => {
   let filesDownloaded = 0;
   for (const DLurl of DLurls) {
 
+    let parsed = url.parse(DLurl);
+    let filename = path.basename(parsed.pathname);
+
     //console.log("Downloading firmware: " + DLurl);
-    let download = await downloadFileToFolder(DLurl, dlDir);
+    let download = await downloadFileToFolder(DLurl, dlDir, filename);
     
     if (download.savedFile.length > 0) { filesDownloaded++; }
 
@@ -186,17 +189,21 @@ function getVersionDownloadStatus(version) {
 }
 
 function getVersionPath(version) {
-  dataDir = path.dirname(configStore.path);
-  return path.join(dataDir, 'firmwareVersions', version);
+  return path.join(getVersionsPath(), version);
 }
 
-async function downloadFileToFolder(argsUrl, dlDir) {
+function getVersionsPath() {
+  dataDir = path.dirname(configStore.path);
+  return path.join(dataDir, 'firmwareVersions');
+}
+
+async function downloadFileToFolder(argsUrl, dlDir, filename) {
 
   let savedFile = "", error = "";
 
-  await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir, overwrite: true } )
+  await download(BrowserWindow.getFocusedWindow(), argsUrl, { directory: dlDir,  overwrite: true, filename: filename } )
     .then(dl => { savedFile = dl.getSavePath(); } )
-    .catch(e => { error = e; } );
+    .catch(e => { error = e.message; } );
 
   return { savedFile, error };
 }
@@ -428,4 +435,29 @@ ipcMain.handle('show-ini', (event, location) => {
   {
       shell.showItemInFolder(location); // This function needs to be executed in main.js to bring file explorer to foreground
   }
+});
+
+ipcMain.handle('refreshAvailableFirmwares', async (event, location) => {
+
+  const versionsFilename = "speeduino.txt";
+  const versionsPath = path.join(getVersionsPath(), versionsFilename);
+
+  let download = await downloadFileToFolder("https://speeduino.com/fw/version", getVersionsPath(), versionsFilename);
+
+  let error;
+  if (download.error.length > 0) {
+     error = "Could not download firmware list, using previously downloaded list.";
+  }
+
+  let versionsContent;
+
+  try {
+    versionsContent = fs.readFileSync(versionsPath, {encoding: "utf8"} );
+    if (versionsContent.length === 0) { throw("") }
+  }
+  catch (err) {
+    error = "Could not download firmware list and previously downloaded list is not available. Please try again."
+  }
+  
+  return { versions: versionsContent, error: error};
 });
